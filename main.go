@@ -14,6 +14,9 @@ import (
 	"strings"
 )
 
+const THRESHOLD = 4.8
+const MINIMUM_STRING_LENGTH = 12
+
 func isIgnored(line string) bool {
 
 	ignored := []string{
@@ -36,6 +39,8 @@ func isIgnored(line string) bool {
 		".sln.DotSettings",
 		"project.pbxproj",
 		"yarn-error.log",
+		".sln",
+		".csproj",
 	}
 
 	for _, needle := range ignored {
@@ -71,7 +76,7 @@ func shannon(filename string, line string, lineno int) {
 				count++
 			} else {
 				// if the word has a minimum length, add it.
-				if count > 16 {
+				if count >= MINIMUM_STRING_LENGTH {
 					stringSet = append(stringSet, letters)
 				}
 
@@ -82,7 +87,7 @@ func shannon(filename string, line string, lineno int) {
 		}
 
 		// we might have a leftover interesting word in the buffer
-		if count > 16 {
+		if count >= MINIMUM_STRING_LENGTH {
 			stringSet = append(stringSet, letters)
 		}
 
@@ -103,10 +108,10 @@ func shannon(filename string, line string, lineno int) {
 
 			// sum now contains the shannon entropy. Higher is more entropic.
 			// around 5 seems to be a good value, but this should be configurable
-			if sum > 5 {
+			if sum > THRESHOLD {
 				// this might be a password, log it out
 				logrus.Warn(filename + ":" + fmt.Sprintf("%d", lineno) + " (Score: " + fmt.Sprintf("%f", sum))
-				logrus.Info(token)
+				logrus.Info(line)
 				fmt.Println()
 			}
 		}
