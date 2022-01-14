@@ -34,6 +34,7 @@ func isIgnored(line string) bool {
 		"/bin",
 		"pnpm-lock.yaml",
 		".sln.DotSettings",
+		"project.pbxproj",
 	}
 
 	for _, needle := range ignored {
