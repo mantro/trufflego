@@ -35,6 +35,7 @@ func isIgnored(line string) bool {
 		"pnpm-lock.yaml",
 		".sln.DotSettings",
 		"project.pbxproj",
+		"yarn-error.log",
 	}
 
 	for _, needle := range ignored {
@@ -129,6 +130,7 @@ func processFile(filename string) error {
 		"image/x-icon",
 		"application/vnd.ms-fontobject",
 		"font/otf",
+		"application/x-gzip",
 	}
 
 	file, err := os.Open(filename)
