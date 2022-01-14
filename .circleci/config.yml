@@ -1,0 +1,64 @@
+version: 2
+jobs:
+  build:
+    docker:
+      # CircleCI Go images available at: https://hub.docker.com/r/circleci/golang/
+      - image: circleci/golang:1.16
+
+    environment: # environment variables for the build itself
+      TEST_RESULTS: /tmp/test-results # path to where test results will be saved
+
+    steps:
+      - checkout
+      - run: mkdir -p $TEST_RESULTS
+
+      # TODO: apparently one of the steps modifies the checksum during the steps. any clue?
+      - restore_cache:
+          keys:
+            - go-mod-v4-{{ checksum "go.sum" }}
+
+      - run:
+          name: go mod verify
+          command: |
+            go mod verify
+
+      - run:
+          name: go build
+          command: |
+            go build -v ./...
+
+      - run:
+          name: gotestsum
+          command: |
+            PACKAGE_NAMES=$(go list ./... | circleci tests split --split-by=timings --timings-type=classname)
+            gotestsum --junitfile ${TEST_RESULTS}/gotestsum-report.xml -- $PACKAGE_NAMES
+
+      - save_cache:
+          key: go-mod-v4-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
+
+      - run:
+          name: generate multi platform binaries
+          command: |
+            mkdir binaries
+            GOOS="darwin" GOARCH="amd64" go build -o binaries/trufflego.darwin.amd64
+            GOOS="darwin" GOARCH="arm64" go build -o binaries/trufflego.darwin.arm64
+            GOOS="linux" GOARCH="amd64" go build -o binaries/trufflego.linux.amd64
+            GOOS="linux" GOARCH="arm64" go build -o binaries/trufflego.linux.arm64
+
+      - store_artifacts:
+          path: binaries
+          destination: binaries
+
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+
+      - store_test_results:
+          path: /tmp/test-results
+workflows:
+  version: 2
+  build-workflow:
+    jobs:
+      - build
