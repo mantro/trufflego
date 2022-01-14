@@ -51,32 +51,43 @@ func shannon(filename string, line string, lineno int) {
 
 	charset := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=#!§$%&()[]|{}*-_.:,;\\'\"?"
 
+	// split line into words
 	words := strings.Fields(line)
 
+	// iterate the words
 	for _, word := range words {
 
 		var stringSet []string
 		count := 0
 		letters := ""
 
+		// check for consecutive strings with >16 length that consist solely of
+		// characters in the above charset
 		for _, char := range word {
 
 			if strings.ContainsRune(charset, char) {
+				// character is from the charset, add it.
 				letters = letters + string(char)
 				count++
 			} else {
+				// if the word has a minimum length, add it.
 				if count > 16 {
 					stringSet = append(stringSet, letters)
 				}
+
+				// one way or another reset the state machine
 				letters = ""
 				count = 0
 			}
 		}
 
+		// we might have a leftover interesting word in the buffer
 		if count > 16 {
 			stringSet = append(stringSet, letters)
 		}
 
+		// stringSet now contains possible words that match the above criteria
+		// now we have to calculate the entropy of these strings
 		for _, token := range stringSet {
 
 			sum := float64(0)
@@ -90,7 +101,10 @@ func shannon(filename string, line string, lineno int) {
 				}
 			}
 
+			// sum now contains the shannon entropy. Higher is more entropic.
+			// around 5 seems to be a good value, but this should be configurable
 			if sum > 5 {
+				// this might be a password, log it out
 				logrus.Warn(filename + ":" + fmt.Sprintf("%d", lineno) + " (Score: " + fmt.Sprintf("%f", sum))
 				logrus.Info(token)
 				fmt.Println()
@@ -99,6 +113,7 @@ func shannon(filename string, line string, lineno int) {
 	}
 }
 
+// check if an array of strings contains a specific string
 func contains(s []string, str string) bool {
 	for _, v := range s {
 		if v == str {
@@ -144,16 +159,21 @@ func processFile(filename string) error {
 		}
 	}(file)
 
+	// read first 512 bytes (or less if file is smaller)
 	buffer := make([]byte, 512)
 
 	n, err := file.Read(buffer)
 	if err != nil && err != io.EOF {
 		return err
 	}
+
+	// do content detection
 	contentType := http.DetectContentType(buffer[:n])
 
+	// check if it is not whitelisted
 	if !contains(supported, contentType) {
 
+		// if it is not blacklisted yet, log it out (there is maybe some content types that we still need to sort it)
 		if !contains(knownUnsupported, contentType) {
 			logrus.Warn(filename + " (" + contentType + ")")
 		}
@@ -161,6 +181,7 @@ func processFile(filename string) error {
 		return nil
 	}
 
+	// reset file pointer to 0
 	if _, err := file.Seek(0, 0); err != nil {
 		return err
 	}
@@ -168,8 +189,11 @@ func processFile(filename string) error {
 	scanner := bufio.NewScanner(file)
 
 	lineno := 0
+
+	// start iterating the file line by line
 	for scanner.Scan() {
 		lineno++
+		// and check the line
 		shannon(filename, scanner.Text(), lineno)
 	}
 
@@ -201,10 +225,12 @@ func main() {
 
 	err := filepath.WalkDir(root, func(filename string, directory fs.DirEntry, e error) error {
 
+		// certain files can be safely ignored
 		if isIgnored(filename) {
 			return nil
 		}
 
+		// iteration returns both directories and files, so sort out the files
 		if stat, err := os.Stat(filename); err == nil {
 			if stat.IsDir() {
 				return nil
@@ -213,6 +239,7 @@ func main() {
 			panic(err)
 		}
 
+		// analyze the file
 		err := processFile(filename)
 		if err != nil {
 			panic(err)
