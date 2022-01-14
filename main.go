@@ -24,6 +24,16 @@ func isIgnored(line string) bool {
 		"node_modules/",
 		".blackbox/",
 		".gpg",
+		"go.sum",
+		".svg",
+		".css",
+		".deps.json",
+		"project.assets.json",
+		"project.nuget.cache",
+		"/obj/",
+		"/bin",
+		"pnpm-lock.yaml",
+		".sln.DotSettings",
 	}
 
 	for _, needle := range ignored {
@@ -87,7 +97,38 @@ func shannon(filename string, line string, lineno int) {
 	}
 }
 
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
+}
+
 func processFile(filename string) error {
+
+	supported := []string{
+		"text/plain; charset=utf-8",
+		"text/xml; charset=utf-8",
+		"text/html; charset=utf-8",
+	}
+
+	knownUnsupported := []string{
+		"application/octet-stream",
+		"application/zip",
+		"application/pdf",
+		"image/jpeg",
+		"image/png",
+		"image/webp",
+		"font/woff",
+		"font/woff2",
+		"font/ttf",
+		"image/x-icon",
+		"application/vnd.ms-fontobject",
+		"font/otf",
+	}
 
 	file, err := os.Open(filename)
 	if err != nil {
@@ -107,8 +148,13 @@ func processFile(filename string) error {
 		return err
 	}
 	contentType := http.DetectContentType(buffer[:n])
-	if contentType != "text/plain; charset=utf-8" {
-		logrus.Warn(filename + " (" + contentType + ")")
+
+	if !contains(supported, contentType) {
+
+		if !contains(knownUnsupported, contentType) {
+			logrus.Warn(filename + " (" + contentType + ")")
+		}
+
 		return nil
 	}
 
@@ -125,7 +171,8 @@ func processFile(filename string) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
+		logrus.Error("Error parsing: " + filename)
+		logrus.Error(err)
 	}
 
 	return nil

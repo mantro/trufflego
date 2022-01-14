@@ -3,7 +3,6 @@
 # Shell stub for development (place it into path and adjusts paths)
 REPO="$HOME/git/mantro/trufflego"
 
-
 set -euo pipefail
 
 DIR="$(pwd)"
