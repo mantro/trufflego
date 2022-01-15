@@ -34,7 +34,7 @@ brews:
   - name: "trufflego"
     tap:
       owner: mantro
-      name: trufflego
+      name: homebrew-trufflego
       branch: main
 
     commit_author:
