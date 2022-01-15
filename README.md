@@ -2,6 +2,13 @@ Search for secrets in a directory
 
 ## Installation
 
+```bash
+brew tap mantro/trufflego
+brew install trufflego
+```
+
+## Developer setup
+
 ```console
 foo@bar:~$ brew install golang
 foo@bar:~$ ./install.sh
