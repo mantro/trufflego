@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/fatih/color"
+	"github.com/jessevdk/go-flags"
 	"github.com/sirupsen/logrus"
 	"io"
 	"io/fs"
@@ -14,8 +16,15 @@ import (
 	"strings"
 )
 
-const THRESHOLD = 4.8
-const MINIMUM_STRING_LENGTH = 12
+var opts struct {
+	Threshold           float64 `short:"t" long:"threshold" default:"4.8" description:"Default 4.8 (higher->lesser detections)"`
+	MinimumStringLength int     `short:"m" long:"minimum" default:"12" description:"Minimum length of detected passwords"`
+	Args                struct {
+		Directory string `positional-arg-name:"directory" required:"yes" description:"Directory"`
+	} `positional-args:"yes"`
+}
+
+var foundColor = color.New(color.FgHiYellow).Add(color.BgBlack).Add(color.Bold)
 
 func isIgnored(line string) bool {
 
@@ -54,7 +63,7 @@ func isIgnored(line string) bool {
 
 func shannon(filename string, line string, lineno int) {
 
-	charset := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=#!§$%&()[]|{}*-_.:,;\\'\"?"
+	charset := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=#!§$%&()[]|{}*-_.:,;'\"?"
 
 	// split line into words
 	words := strings.Fields(line)
@@ -76,7 +85,7 @@ func shannon(filename string, line string, lineno int) {
 				count++
 			} else {
 				// if the word has a minimum length, add it.
-				if count >= MINIMUM_STRING_LENGTH {
+				if count >= opts.MinimumStringLength {
 					stringSet = append(stringSet, letters)
 				}
 
@@ -87,7 +96,7 @@ func shannon(filename string, line string, lineno int) {
 		}
 
 		// we might have a leftover interesting word in the buffer
-		if count >= MINIMUM_STRING_LENGTH {
+		if count >= opts.MinimumStringLength {
 			stringSet = append(stringSet, letters)
 		}
 
@@ -95,23 +104,33 @@ func shannon(filename string, line string, lineno int) {
 		// now we have to calculate the entropy of these strings
 		for _, token := range stringSet {
 
-			sum := float64(0)
+			// inspired by http://blog.dkbza.org/2007/05/scanning-data-for-entropy-anomalies.html
+			entropy := float64(0)
 			strCount := len(token)
 
 			for _, char := range charset {
 				cnt := strings.Count(token, string(char))
 				temp := float64(cnt) / float64(strCount)
 				if temp > 0 {
-					sum = sum + ((0 - temp) * math.Log2(temp))
+					entropy = entropy + ((0 - temp) * math.Log2(temp))
 				}
 			}
 
-			// sum now contains the shannon entropy. Higher is more entropic.
+			// entropy now contains the shannon entropy. Higher is more entropic.
 			// around 5 seems to be a good value, but this should be configurable
-			if sum > THRESHOLD {
+			if entropy > opts.Threshold {
 				// this might be a password, log it out
-				logrus.Warn(filename + ":" + fmt.Sprintf("%d", lineno) + " (Score: " + fmt.Sprintf("%f", sum))
-				logrus.Info(line)
+				logrus.Warnf("%s:%d (Score: %s)", filename, lineno, color.HiGreenString(" (Score: %f)", entropy))
+
+				// try to color highlight the token
+				output := strings.Replace(line, token, foundColor.Sprintf(token), 1)
+
+				// truncate long line
+				if len(output) > 1000 {
+					output = output[0:1000] + "... <truncated>"
+				}
+
+				fmt.Println(output)
 				fmt.Println()
 			}
 		}
@@ -205,6 +224,7 @@ func processFile(filename string) error {
 	if err := scanner.Err(); err != nil {
 		logrus.Error("Error parsing: " + filename)
 		logrus.Error(err)
+		fmt.Println()
 	}
 
 	return nil
@@ -212,12 +232,12 @@ func processFile(filename string) error {
 
 func main() {
 
-	if len(os.Args) < 2 {
-		logrus.Error("Please provide a directory as parameter")
+	if _, err := flags.ParseArgs(&opts, os.Args[1:]); err != nil {
 		os.Exit(1)
 	}
 
-	root := os.Args[1]
+	root := opts.Args.Directory
+
 	if root[0:1] != "/" {
 		if cwd, err := os.Getwd(); err != nil {
 			panic(err)
