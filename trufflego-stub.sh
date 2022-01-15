@@ -1,7 +1,8 @@
 #!/bin/bash
+set -euo pipefail
 
-# Shell stub for development (place it into path and adjusts paths)
-REPO="$HOME/git/mantro/trufflego"
+# Find path of the script (and follow symlink if needed)
+REPO=$(cd -- "$(dirname -- "$([ -L "$SRC" ] && readlink -f "$SRC" || echo "$SRC")")" &>/dev/null && pwd)
 
 set -euo pipefail
 
